@@ -45,6 +45,9 @@ def link_bundle(directory, output, native_libraries=()):
     try:
         run(['clang', '-arch', 'arm64', '-fvisibility=hidden', '-O2', '-Wall', '-Wextra', '-Werror',
              '-c', 'native.c', '-o', 'native.o'], directory)
+        if build.get('abi_bridge'):
+            run(['clang', '-arch', 'arm64', '-c', build['abi_bridge'], '-o', 'native_abi.o'], directory)
+            objects.append('native_abi.o')
         for module in build['modules']:
             # Retain optional Linux CPU dispatch variants. The platform profile
             # advertises baseline ARM64 capabilities; it must not select SVE/SME

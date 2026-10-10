@@ -50,6 +50,7 @@ class Bundle:
         self.core = cores[0] if cores else None
         self.link_order = ([self.core] if self.core else [])+[n for n in self.nodes if n is not self.core]
         self.plans = {}
+        self.native_bridges = {}
         base = ELF_BASE
         for node in self.link_order:
             names = [f'__{node.identifier.upper()}L{i}' for i in range(len(node.elf.loads))]
@@ -110,6 +111,11 @@ class Bundle:
                         owner, definition_index = provider
                         if owner.native:
                             plan.imports[index] = '_'+symbol['name']
+                            signature = owner.native.get('signatures', {}).get(symbol['name'])
+                            if signature:
+                                label = f'_aot_native_{owner.identifier}_s{definition_index}'
+                                plan.imports[index] = label
+                                self.native_bridges[label] = (symbol['name'], signature)
                         elif owner.intrinsic:
                             plan.imports[index] = '_aot_import_'+symbol['name']
                         else:
@@ -189,6 +195,12 @@ class Bundle:
         if finalizers:
             native += '\n__attribute__((destructor)) static void aot_finalize(void) {'+('aot_linux___call_tls_dtors(); ' if self.core else '')+' '.join(reversed(finalizers))+'}\n'
         (directory/'native.c').write_text(native)
+        if self.native_bridges:
+            from aot.native_abi import emit_bridge
+            (directory/'native_abi.S').write_text(''.join(
+                emit_bridge(label, '_'+name, signature)
+                for label, (name, signature) in self.native_bridges.items()))
+        report['native_abi_bridges'] = sorted(name for name, _ in self.native_bridges.values())
         (directory/'exports.txt').write_text(''.join('_g_'+name+'\n' for name in sorted(self.public)))
         (directory/'manifest.json').write_text(json.dumps(report, indent=2)+'\n')
         return report

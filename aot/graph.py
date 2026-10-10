@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 from machso import ELF
+from aot.native_abi import validate_signatures
 
 
 @dataclass
@@ -57,6 +58,7 @@ class Graph:
                     any(not isinstance(symbol, str) or not symbol for symbol in names)):
                 raise ValueError(f'{name}: native install name and exports are required')
             self.native_paths[name] = path
+            validate_signatures(declaration)
             self.native_declarations[path] = declaration
         self.root = self.load(Path(source).resolve())
         self.roots = [self.root]

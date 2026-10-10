@@ -39,8 +39,13 @@ uv run python link_bundle.py build/prepared build/library.dylib \
 ```
 
 The linker checks the native install name and required exports before building.
-Native providers must implement the caller's ABI; the manifest does not adapt
-Linux and Darwin argument layouts.
+Native providers must implement the caller's ABI. Supply `inspect_native.py
+--signatures signatures.json` to generate Linux-to-Darwin argument bridges for
+fixed scalar functions. The file maps exported names to `arguments` and `result`,
+for example `{"foo":{"arguments":["ptr","i32"],"result":"i32"}}`.
+Supported types are `i8/u8/i16/u16/i32/u32/i64/u64/ptr/f32/f64`, plus `void` results.
+Variadic and aggregate signatures are unsupported; functions without signatures
+link directly.
 
 This is a prototype with partial Linux ABI support. The glibc platform profile
 targets ARM64 glibc 2.39; unsupported syscalls return `ENOSYS`, and some loader

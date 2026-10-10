@@ -28,6 +28,7 @@ def prepare_bundle(source, directory, library_paths=(), experimental=False, addi
         'schema': 1,
         'modules': [node.identifier for node in bundle.link_order],
         'linker_flags': flags,
+        'abi_bridge': 'native_abi.S' if report['native_abi_bridges'] else None,
     }
     (directory/'manifest.json').write_text(json.dumps(report, indent=2)+'\n')
     print(f'Prepared {len(bundle.nodes)} ELF libraries in {directory}; required unresolved imports: 0.')
