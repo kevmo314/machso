@@ -26,6 +26,10 @@ the prepared directory using your own CI or file transport; machso does not mana
 SSH connections. Each stage saves a JSON report. Use `--plan-only` to inspect the
 dependency graph without generating code. Add `--include helper.so` for libraries
 loaded dynamically; all roots share one dependency closure and Linux runtime.
+On Linux, add `--ubuntu-cache /path/to/cache` to acquire missing ARM64 libraries
+from Ubuntu Noble's signed package indexes, without a filename-to-package table.
+This optional provider requires `gpgv`, `dpkg-deb`, and Ubuntu's archive keyring
+(`--ubuntu-keyring` overrides its path); reports record package versions and hashes.
 
 To satisfy an ELF dependency with an existing native dylib, generate its interface
 on macOS and pass that file to the portable compiler:
