@@ -388,6 +388,8 @@ def emit(source, directory, plan=None):
         output += ['.section __DATA,__thread_vars,thread_local_variables', '.p2align 3',
                    '.globl _aot_tls_descriptor', '.private_extern _aot_tls_descriptor', '_aot_tls_descriptor:',
                    '.quad __tlv_bootstrap', '.quad 0', '.quad _aot_tls_image']
+    if any(s['info'] & 15 == 6 for _, s in public_exports):
+        output += ['.section __DATA,__thread_vars,thread_local_variables', '.p2align 3']
     for name, s in public_exports:
         if s['info'] & 15 == 6:
             output += [f'.globl _g_{name}', f'_g_{name}:', '.quad __tlv_bootstrap', '.quad 0', f'.quad Laot_tls_{name}']
