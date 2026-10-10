@@ -18,8 +18,9 @@ def prepare_bundle(source, directory, library_paths=(), experimental=False, addi
     flags = []
     for node in bundle.nodes:
         plan = bundle.plans[node.index]
-        flags += ['-segaddr', plan.thunk_segment, hex(plan.thunk_address),
-                  '-segprot', plan.thunk_segment, 'rx', 'rx']
+        for thunk in plan.thunks:
+            flags += ['-segaddr', thunk['segment'], hex(thunk['address']),
+                      '-segprot', thunk['segment'], 'rx', 'rx']
         for name, load in zip(plan.segments, node.elf.loads):
             address = plan.base+(load[3] & -0x4000)
             protection = ''.join(letter for flag, letter in [(4,'r'),(2,'w'),(1,'x')] if load[1] & flag)
