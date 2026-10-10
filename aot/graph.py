@@ -173,6 +173,10 @@ class Graph:
                         continue
                 elif definition['version_hidden']:
                     continue
+                if candidate.native:
+                    reason = candidate.native.get('signature_report', {}).get('unsupported', {}).get(symbol['name'])
+                    if reason:
+                        raise ValueError(f"{candidate.name}:{symbol['name']}: {reason}")
                 return candidate, index
         return None
 

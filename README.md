@@ -47,6 +47,19 @@ Supported types are `i8/u8/i16/u16/i32/u32/i64/u64/ptr/f32/f64`, plus `void` res
 Variadic and aggregate signatures are unsupported; functions without signatures
 link directly.
 
+With API headers available, generate signatures automatically from the inspected
+exports using the optional `headers` extra (requires Clang):
+
+```sh
+uv run --extra headers python inspect_headers.py provider.json typed-provider.json \
+  --header /path/to/provider.h -I /path/to/includes
+```
+
+Pass `typed-provider.json` to `--native-provider`. It records undeclared exports
+and unsupported signatures; using a known unsupported signature fails preparation.
+On macOS, use `--sysroot` with ARM64 Linux headers when an API includes Linux
+system headers. Parsing always targets the Linux caller's type layout.
+
 This is a prototype with partial Linux ABI support. The glibc platform profile
 targets ARM64 glibc 2.39; unsupported syscalls return `ENOSYS`, and some loader
 operations remain trap stubs. Successful conversion does not establish that every
