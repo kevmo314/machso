@@ -36,8 +36,8 @@ DYNAMIC_LINKER_APIS = {'dlopen', 'dlmopen', 'dlsym', 'dlvsym', 'dlclose', 'dlerr
 
 
 class Bundle:
-    def __init__(self, source, library_paths=(), additional_roots=()):
-        self.graph = Graph(source, library_paths, additional_roots)
+    def __init__(self, source, library_paths=(), additional_roots=(), native_providers=()):
+        self.graph = Graph(source, library_paths, additional_roots, native_providers)
         if self.graph.root.elf.machine != 183:
             raise ValueError('native bundle backend requires ARM64 ELF; x86-64 needs a different code-generation backend')
         if self.graph.missing:
@@ -108,7 +108,9 @@ class Bundle:
                     provider = self.graph.bindings.get((node.index, index))
                     if provider:
                         owner, definition_index = provider
-                        if owner.intrinsic:
+                        if owner.native:
+                            plan.imports[index] = '_'+symbol['name']
+                        elif owner.intrinsic:
                             plan.imports[index] = '_aot_import_'+symbol['name']
                         else:
                             plan.imports[index] = owner.symbol_name(definition_index)
@@ -136,7 +138,7 @@ class Bundle:
                        'complete': False})
         if self.core:
             from aot.tunables import extract
-            loader = next((node for node in self.graph.nodes if node.intrinsic and
+            loader = next((node for node in self.graph.nodes if node.intrinsic and not node.native and
                            any(s['name']=='__tunable_get_val' and s['shndx'] for s in node.elf.symbols)), None)
             if loader is None:
                 raise ValueError('glibc bootstrap requires its matching loader binary for tunable defaults')
