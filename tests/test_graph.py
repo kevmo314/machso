@@ -41,6 +41,43 @@ class GraphTests(unittest.TestCase):
             self.assertEqual(owner.elf.symbols[index]['version'],'V1')
             self.assertTrue(owner.elf.symbols[index]['version_hidden'])
 
+    def test_gnu_unique_object_import_is_resolved_and_emitted(self):
+        from compile_bundle import prepare_bundle
+        with tempfile.TemporaryDirectory() as temporary:
+            directory=Path(temporary)
+            provider=self.compile(directory,'provider',
+                'int singleton=19; __asm__(".type singleton, %gnu_unique_object");',
+                ['-Wl,-soname,provider.so'])
+            consumer=self.compile(directory,'consumer',
+                'extern int singleton; int read_value(void){return singleton;}',
+                ['-L'+str(directory),'-l:provider.so'])
+            graph=Graph(consumer,[directory])
+            self.assertFalse(graph.missing)
+            imported=next(i for i,s in enumerate(graph.root.elf.symbols) if s['name']=='singleton')
+            owner,index=graph.bindings[(graph.root.index,imported)]
+            self.assertEqual(owner.path,provider.resolve())
+            self.assertEqual(owner.elf.symbols[index]['info'] >> 4,10)
+            output=directory/'prepared'
+            report=prepare_bundle(consumer,output,[directory])
+            self.assertIn('singleton',report['public_names'])
+            self.assertIn(owner.symbol_name(index),(output/owner.identifier/'image.S').read_text())
+
+    def test_nonzero_first_load_retains_elf_virtual_addresses(self):
+        from compile_bundle import prepare_bundle
+        with tempfile.TemporaryDirectory() as temporary:
+            directory=Path(temporary)
+            source=self.compile(directory,'offset','int answer(void){return 42;}',
+                                ['-Wl,-Ttext-segment=0x400000'])
+            elf=ELF.from_file(source)
+            self.assertEqual(elf.loads[0][3],0x400000)
+            output=directory/'prepared'
+            report=prepare_bundle(source,output)
+            self.assertIn('answer',report['public_names'])
+            assembly=(output/'n0/image.S').read_text()
+            self.assertIn('_aot_n0_elf_400000:',assembly)
+            value=next(s['value'] for s in elf.symbols if s['name']=='answer')
+            self.assertIn(f'.set _g_answer, _aot_n0_elf_{value:x}',assembly)
+
     def test_runpath_origin_and_no_filename_mapping(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory=Path(temporary)

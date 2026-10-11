@@ -190,8 +190,8 @@ def emit(source, directory, plan=None):
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
     elf = ELF.from_file(source, allow_tls=True)
-    if not elf.loads or elf.loads[0][3] != 0:
-        raise ValueError('AOT currently requires the first LOAD at virtual address zero')
+    if not elf.loads or (plan is None and elf.loads[0][3] != 0):
+        raise ValueError('standalone AOT requires the first LOAD at virtual address zero')
     if plan is None and (len(elf.loads) != 2 or [p[1] for p in elf.loads] != [5, 6]):
         raise ValueError('standalone glibc profile requires RX at zero followed by RW')
     base = plan.base if plan else ELF_BASE
@@ -206,7 +206,7 @@ def emit(source, directory, plan=None):
     exports = {}
     versions = struct.unpack('<'+'H'*len(elf.symbols), elf.read(elf.tag(0x6ffffff0), 2*len(elf.symbols))) if elf.tag(0x6ffffff0) else [0]*len(elf.symbols)
     for s, version in zip(elf.symbols, versions):
-        if s['shndx'] and s['info'] >> 4 in (1, 2) and s['other'] & 3 in (0, 3):
+        if s['shndx'] and s['info'] >> 4 in (1, 2, 10) and s['other'] & 3 in (0, 3):
             if s['name'] not in exports or not version & 0x8000:
                 exports[s['name']] = s
     labels = {p[3] for p in elf.loads}

@@ -32,7 +32,7 @@ class Node:
 
 def exported(symbol):
     return (symbol['shndx'] and symbol['shndx'] < 0xff00 and
-            symbol['info'] >> 4 in (1, 2) and symbol['other'] & 3 in (0, 3))
+            symbol['info'] >> 4 in (1, 2, 10) and symbol['other'] & 3 in (0, 3))
 
 
 class Graph:
@@ -92,6 +92,16 @@ class Graph:
         # Its entire ELF image must not be initialized as another process loader.
         for node in self.nodes:
             node.intrinsic = bool(node.native) or node.name.startswith('ld-linux-')
+        # C++ operator libraries export tens of thousands of symbols. Preserve
+        # ELF table order within each name without rescanning every definition
+        # for every import.
+        self.definitions = {}
+        for node in self.nodes:
+            names = {}
+            for index, symbol in enumerate(node.elf.symbols):
+                if exported(symbol):
+                    names.setdefault(symbol['name'], []).append(index)
+            self.definitions[node.index] = names
         self.bindings = {}
         self.missing = []
         for node in self.nodes:
@@ -188,9 +198,8 @@ class Graph:
 
     def resolve(self, node, symbol):
         for candidate in self.scope(node):
-            for index, definition in enumerate(candidate.elf.symbols):
-                if not exported(definition) or definition['name'] != symbol['name']:
-                    continue
+            for index in self.definitions[candidate.index].get(symbol['name'], ()):
+                definition = candidate.elf.symbols[index]
                 if symbol['version']:
                     if definition['version'] != symbol['version']:
                         continue
