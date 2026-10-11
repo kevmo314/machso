@@ -63,6 +63,11 @@ class Graph:
             if (not isinstance(tls_exports, list) or
                     any(not isinstance(symbol, str) or symbol not in names for symbol in tls_exports)):
                 raise ValueError(f'{name}: native TLS exports must be declared exported names')
+            versions = declaration.get('symbol_versions', {})
+            if (not isinstance(versions, dict) or
+                    any(symbol not in names or not isinstance(version, str) or not version
+                        for symbol, version in versions.items())):
+                raise ValueError(f'{name}: native symbol versions require exported names and nonempty versions')
             validate_signatures(declaration)
             if set(tls_exports) & declaration.get('signatures', {}).keys():
                 raise ValueError(f'{name}: native TLS exports cannot have function signatures')
@@ -121,7 +126,8 @@ class Graph:
             if path in self.native_declarations:
                 declaration = self.native_declarations[path]
                 symbols = [{'name': name, 'info': 0x12, 'shndx': 1, 'other': 0,
-                            'version': None, 'version_hidden': False, 'value': 0}
+                            'version': declaration.get('symbol_versions', {}).get(name),
+                            'version_hidden': False, 'value': 0}
                            for name in declaration['exports']]
                 elf = SimpleNamespace(soname=declaration['soname'], symbols=symbols,
                                       needed=[], tls=None, machine=183, architecture='aarch64',

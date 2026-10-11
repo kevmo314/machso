@@ -130,6 +130,26 @@ class GraphTests(unittest.TestCase):
             report=Graph(root,native_providers=[interface]).report()
             self.assertEqual(report['missing_required'][0]['name'],'some_value')
 
+    def test_native_provider_satisfies_only_its_declared_symbol_version(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory=Path(temporary)
+            script=directory/'version.map'
+            script.write_text('V1 { global: some_value; };')
+            self.compile(directory,'provider','int some_value(void){return 41;}',
+                         ['-Wl,-soname,provider.so','-Wl,--version-script='+str(script)])
+            root=self.compile(directory,'root','extern int some_value(void); int answer(void){return some_value();}',
+                              ['-L'+str(directory),'-l:provider.so'])
+            interface=directory/'provider.json'
+            declaration={'schema':1,'architecture':'arm64','soname':'provider.so',
+                         'native_install_name':'@rpath/provider.dylib','exports':['some_value'],
+                         'symbol_versions':{'some_value':'V1'}}
+            interface.write_text(json.dumps(declaration))
+            graph=Graph(root,native_providers=[interface])
+            self.assertFalse(graph.missing)
+            declaration['symbol_versions']['some_value']='V2'
+            interface.write_text(json.dumps(declaration))
+            self.assertEqual(Graph(root,native_providers=[interface]).report()['missing_required'][0]['version'],'V1')
+
     def test_converted_definitions_take_precedence_over_native_exports(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory=Path(temporary)
