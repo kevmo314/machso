@@ -153,3 +153,18 @@ def emit_export_pointer_resolver(exports, native_bridges, unsupported=()):
             '        if (aot_export_entries[i].target && address==aot_export_entries[i].target)\n'
             '            return (void *)aot_export_entries[i].source;\n'
             '    return address;\n}\n')
+
+
+def emit_export_metadata(names):
+    names = sorted(set(names))
+    return ('#include <string.h>\n'
+            'int g_machso_native_export_abi(const char *name) {\n'
+            '    static const char *const names[]={'+','.join(json.dumps(name) for name in names)+'};\n'
+            '    if (!name) return 0;\n'
+            '    unsigned low=0,high=sizeof(names)/sizeof(names[0]);\n'
+            '    while (low<high) {\n'
+            '        unsigned middle=low+(high-low)/2;\n'
+            '        int order=strcmp(names[middle],name);\n'
+            '        if (!order) return 1;\n'
+            '        if (order<0) low=middle+1; else high=middle;\n'
+            '    }\n    return 0;\n}\n')
