@@ -278,7 +278,17 @@ def emit(source, directory, plan=None):
                 tls_pointers.append((target-tls[3], addend))
                 labels.add(addend)
     def array_values(address, size):
-        relocated = {target: addend for target, kind, _, addend in elf.relocs if kind == 1027}
+        relocated = {}
+        for target, kind, index, addend in elf.relocs:
+            if not address <= target < address+size:
+                continue
+            if kind == 1027:
+                relocated[target] = addend
+            elif kind == 257:
+                symbol = elf.symbols[index]
+                if not symbol['shndx']:
+                    raise ValueError(f'initializer/finalizer imports are unsupported: {symbol["name"]}')
+                relocated[target] = symbol['value']+addend
         return [relocated.get(address+i, struct.unpack('<Q', elf.read(address+i, 8))[0]) for i in range(0, size, 8)]
     initializers = ([elf.tag(12)] if elf.tag(12) else [])+array_values(elf.tag(25), elf.tag(27))
     finalizers = list(reversed(array_values(elf.tag(26), elf.tag(28))))+([elf.tag(13)] if elf.tag(13) else [])

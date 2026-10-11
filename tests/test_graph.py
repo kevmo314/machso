@@ -78,6 +78,24 @@ class GraphTests(unittest.TestCase):
             value=next(s['value'] for s in elf.symbols if s['name']=='answer')
             self.assertIn(f'.set _g_answer, _aot_n0_elf_{value:x}',assembly)
 
+    def test_symbol_relocated_initializer_and_finalizer_use_the_function(self):
+        from compile_bundle import prepare_bundle
+        with tempfile.TemporaryDirectory() as temporary:
+            directory=Path(temporary)
+            source=self.compile(directory,'callbacks',
+                'void start(void){} void stop(void){} '
+                'void(*init_hook)(void) __attribute__((section(".init_array")))=start; '
+                'void(*fini_hook)(void) __attribute__((section(".fini_array")))=stop;')
+            elf=ELF.from_file(source)
+            self.assertTrue(any(kind==257 for _,kind,_,_ in elf.relocs))
+            output=directory/'prepared'
+            report=prepare_bundle(source,output)
+            component=report['components']['callbacks.so']
+            start=next(s['value'] for s in elf.symbols if s['name']=='start')
+            stop=next(s['value'] for s in elf.symbols if s['name']=='stop')
+            self.assertEqual(component['initializers'],[start])
+            self.assertEqual(component['finalizers'],[stop])
+
     def test_runpath_origin_and_no_filename_mapping(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory=Path(temporary)

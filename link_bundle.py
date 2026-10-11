@@ -4,8 +4,43 @@ import argparse
 import json
 from pathlib import Path
 import subprocess
+import struct
 
-from aot.macho import finish, file_hash, native_interface
+from aot.macho import finish, file_hash, native_interface, load_commands
+from machso import align
+
+
+def reserve_native_space(report, directory, objects):
+    """Keep fixed ELF segments beyond the linker-generated native sections."""
+    size = 0x100000  # Linker headers, stubs, and alignment padding.
+    custom = set(report['segments'])
+    for name in objects:
+        with (directory/name).open('rb') as source:
+            header = source.read(32)
+            if header[:4] != b'\xcf\xfa\xed\xfe':
+                raise ValueError(f'{name}: expected a Mach-O object')
+            data = header+source.read(struct.unpack_from('<I', header, 20)[0])
+        for command, offset, _ in load_commands(data):
+            if command != 0x19:
+                continue
+            for index in range(struct.unpack_from('<I', data, offset+64)[0]):
+                section = offset+72+index*80
+                segment = data[section+16:section+32].rstrip(b'\0').decode()
+                if segment not in custom:
+                    length = struct.unpack_from('<Q', data, section+40)[0]
+                    alignment = 1 << struct.unpack_from('<I', data, section+52)[0]
+                    size += align(length, alignment)
+    delta = align(max(0, size-min(report['segments'].values())), 0x10000)
+    if not delta:
+        return
+    flags = report['native_build']['linker_flags']
+    for index, flag in enumerate(flags):
+        if flag == '-segaddr':
+            flags[index+2] = hex(int(flags[index+2], 16)+delta)
+    for addresses in [report['segments'], *(c['segments'] for c in report['components'].values())]:
+        for name in addresses:
+            addresses[name] += delta
+    report['native_build']['native_space_shift'] = delta
 
 
 def run(command, directory):
@@ -68,6 +103,7 @@ def link_bundle(directory, output, native_libraries=()):
             run(['clang', '-arch', 'arm64', '-march=armv9.4-a+sve+sve2+sme+sme2',
                  '-c', 'image.S', '-o', 'image.o'], directory/module)
             objects.append(module+'/image.o')
+        reserve_native_space(report, directory, objects)
         run(['clang', '-dynamiclib', *objects, *dependencies, '-Wl,'+','.join(build['linker_flags']),
              *(['-Wl,-rpath,@loader_path'] if dependencies else []),
              '-Wl,-exported_symbols_list,'+exports, '-install_name', '@rpath/'+output.name,
