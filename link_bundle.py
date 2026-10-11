@@ -105,6 +105,9 @@ def link_bundle(directory, output, native_libraries=()):
             objects.append(module+'/image.o')
         reserve_native_space(report, directory, objects)
         run(['clang', '-dynamiclib', *objects, *dependencies, '-Wl,'+','.join(build['linker_flags']),
+             # Widely separated functions can exceed compact unwind's 24-bit
+             # compressed offsets. Retain DWARF unwind information instead.
+             *(['-Wl,-no_compact_unwind'] if build.get('native_space_shift') else []),
              *(['-Wl,-rpath,@loader_path'] if dependencies else []),
              '-Wl,-exported_symbols_list,'+exports, '-install_name', '@rpath/'+output.name,
              '-o', str(output)], directory)
