@@ -104,7 +104,9 @@ def link_bundle(directory, output, native_libraries=()):
                  '-c', 'image.S', '-o', 'image.o'], directory/module)
             objects.append(module+'/image.o')
         reserve_native_space(report, directory, objects)
-        run(['clang', '-dynamiclib', *objects, *dependencies, '-Wl,'+','.join(build['linker_flags']),
+        # A converted SDK also exports Linux libc names. Native bootstrap
+        # calls must bind to Darwin, including pthread's incompatible structs.
+        run(['clang', '-dynamiclib', *objects, '-lSystem', *dependencies, '-Wl,'+','.join(build['linker_flags']),
              # Widely separated functions can exceed compact unwind's 24-bit
              # compressed offsets. Retain DWARF unwind information instead.
              *(['-Wl,-no_compact_unwind'] if build.get('native_space_shift') else []),
